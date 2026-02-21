@@ -9,13 +9,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ─── CONFIG ────────────────────────────────────────────────────────────────
-// const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/newsdb";
 const MONGO_URI = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.maurhd8.mongodb.net/newsdb?retryWrites=true&w=majority&appName=Cluster0`;
-const NEWS_API_KEY = process.env.NEWS_API_KEY || "YOUR_NEWSDATA_IO_API_KEY";
+const NEWS_API_KEY = process.env.NEWS_API_KEY || "pub_4f0dc8755d3445b7a8ec39f3149f7aa8YOUR_NEWSDATA_IO_API_KEY";
 const PORT = process.env.PORT || 5000;
 
-// ─── MONGOOSE SCHEMA ───────────────────────────────────────────────────────
 const articleSchema = new mongoose.Schema(
   {
     article_id: { type: String, unique: true, required: true },
@@ -41,20 +38,18 @@ const articleSchema = new mongoose.Schema(
     ai_region: String,
     ai_org: String,
     duplicate: Boolean,
-    datatype: String, // news, blog, podcast, etc.
+    datatype: String,
   },
   { timestamps: true }
 );
 
 const Article = mongoose.model("Article", articleSchema);
 
-// ─── MONGOOSE CONNECT ──────────────────────────────────────────────────────
 mongoose
   .connect(MONGO_URI)
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.error("❌ MongoDB error:", err));
 
-// ─── FETCH & UPSERT ARTICLES ───────────────────────────────────────────────
 async function fetchAndStoreNews() {
   console.log(`[${new Date().toISOString()}] 🔄 Fetching news from NewsData.io...`);
   try {
@@ -62,7 +57,6 @@ async function fetchAndStoreNews() {
       params: {
         apikey: NEWS_API_KEY,
         language: "en",
-        // You can add: country, category, q, etc. here
       },
     });
 
@@ -119,15 +113,12 @@ async function fetchAndStoreNews() {
   }
 }
 
-// ─── CRON JOB: every 6 hours ───────────────────────────────────────────────
 cron.schedule("0 */6 * * *", () => {
   fetchAndStoreNews();
 });
 
-// Run once on startup too
 fetchAndStoreNews();
 
-// ─── GET /api/news ─────────────────────────────────────────────────────────
 app.get("/api/news", async (req, res) => {
   try {
     const {
@@ -145,7 +136,6 @@ app.get("/api/news", async (req, res) => {
 
     const filter = {};
 
-    // Date range
     if (startDate || endDate) {
       filter.pubDate = {};
       if (startDate) filter.pubDate.$gte = new Date(startDate);
@@ -156,34 +146,28 @@ app.get("/api/news", async (req, res) => {
       }
     }
 
-    // Author / Creator (case-insensitive partial match)
     if (author) {
       filter.creator = { $elemMatch: { $regex: author, $options: "i" } };
     }
 
-    // Language
     if (language) {
       filter.language = language.toLowerCase();
     }
 
-    // Country (can be comma-separated multiple)
     if (country) {
       const countries = country.split(",").map((c) => c.trim().toLowerCase());
       filter.country = { $in: countries };
     }
 
-    // Category (can be comma-separated multiple)
     if (category) {
       const categories = category.split(",").map((c) => c.trim().toLowerCase());
       filter.category = { $all: categories };
     }
 
-    // Datatype
     if (datatype) {
       filter.datatype = datatype.toLowerCase();
     }
 
-    // Full-text search on title/description
     if (search) {
       filter.$or = [
         { title: { $regex: search, $options: "i" } },
@@ -215,7 +199,6 @@ app.get("/api/news", async (req, res) => {
   }
 });
 
-// ─── GET /api/filters – distinct values for dropdowns ─────────────────────
 app.get("/api/filters", async (req, res) => {
   try {
     const [languages, countries, categories, datatypes] = await Promise.all([
@@ -237,7 +220,6 @@ app.get("/api/filters", async (req, res) => {
   }
 });
 
-// ─── GET /api/status – cron/db info ───────────────────────────────────────
 app.get("/api/status", async (req, res) => {
   const count = await Article.countDocuments();
   const latest = await Article.findOne().sort({ pubDate: -1 }).lean();
@@ -253,253 +235,3 @@ app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📅 Cron job scheduled: every 6 hours`);
 });
-
-
-
-
-
-
-
-
-// const express = require("express");
-// const cors = require("cors");
-// const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-// const PDFDocument = require("pdfkit");
-// require("dotenv").config();
-
-// const app = express();
-// const port = process.env.PORT || 5000;
-
-// app.use(
-//   cors({
-//     origin: ["http://localhost:5173", "https://animated-cat-0a19c2.netlify.app"],
-//     credentials: true,
-//   })
-// );
-// app.use(express.json());
-
-// app.get("/", (req, res) => {
-//   res.json({ message: "✅ Community Cleanliness Server is Running..." });
-// });
-
-// const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.maurhd8.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
-
-// const client = new MongoClient(uri, {
-//   serverApi: {
-//     version: ServerApiVersion.v1,
-//     strict: true,
-//     deprecationErrors: true,
-//   },
-// });
-
-// async function run() {
-//   try {
-//     console.log("✅ MongoDB connected successfully");
-
-//     const db = client.db("issues-DB");
-//     const issuesCollection = db.collection("issues");
-//     const contributionsCollection = db.collection("contributions");
-//     const usersCollection = db.collection("users");
-
-//     app.get("/api/issues", async (req, res) => {
-//       try {
-//         const limit = parseInt(req.query.limit) || 0;
-//         const cursor = issuesCollection.find().sort({ date: -1 });
-//         const issues = limit
-//           ? await cursor.limit(limit).toArray()
-//           : await cursor.toArray();
-//         res.send(issues);
-//       } catch (err) {
-//         res.status(500).send({ message: "Error fetching issues" });
-//       }
-//     });
-
-//     app.get("/api/issues/:id", async (req, res) => {
-//       try {
-//         const id = req.params.id;
-//         const result = await issuesCollection.findOne({
-//           _id: new ObjectId(id),
-//         });
-//         if (!result)
-//           return res.status(404).send({ message: "Issue not found" });
-//         res.send(result);
-//       } catch {
-//         res.status(500).send({ message: "Error fetching issue" });
-//       }
-//     });
-
-//     app.post("/api/issues", async (req, res) => {
-//       const issue = req.body;
-//       issue.date = new Date();
-//       issue.status = "ongoing";
-//       const result = await issuesCollection.insertOne(issue);
-//       res.send(result);
-//     });
-
-//     app.put("/api/issues/:id", async (req, res) => {
-//       const id = req.params.id;
-//       const updateData = req.body;
-//       const result = await issuesCollection.updateOne(
-//         { _id: new ObjectId(id) },
-//         { $set: updateData }
-//       );
-//       res.send(result);
-//     });
-
-//     app.delete("/api/issues/:id", async (req, res) => {
-//       const id = req.params.id;
-//       const result = await issuesCollection.deleteOne({
-//         _id: new ObjectId(id),
-//       });
-//       res.send(result);
-//     });
-
-//     app.post("/api/contributions", async (req, res) => {
-//       const contribution = req.body;
-//       contribution.date = new Date();
-//       const result = await contributionsCollection.insertOne(contribution);
-//       res.send(result);
-//     });
-
-//     app.get("/api/contributions/:issueId", async (req, res) => {
-//       const issueId = req.params.issueId;
-//       const result = await contributionsCollection.find({ issueId }).toArray();
-//       res.send(result);
-//     });
-
-//     app.get("/api/my-contributions/:email", async (req, res) => {
-//       try {
-//         const email = req.params.email;
-//         const contributions = await contributionsCollection
-//           .find({ email })
-//           .toArray();
-
-//         const result = await Promise.all(
-//           contributions.map(async (c) => {
-//             let issueTitle = "Unknown Issue";
-//             let category = "N/A";
-//             let issue = null;
-
-//             try {
-//               issue = await issuesCollection.findOne({
-//                 _id: new ObjectId(c.issueId),
-//               });
-//             } catch {
-//               issue = await issuesCollection.findOne({ _id: c.issueId });
-//             }
-
-//             if (issue) {
-//               issueTitle = issue.title || "Unknown Issue";
-//               category = issue.category || "N/A";
-//             }
-
-//             return {
-//               ...c,
-//               issueTitle,
-//               category,
-//             };
-//           })
-//         );
-
-//         res.send(result);
-//       } catch (err) {
-//         res.status(500).send({ message: "Error fetching contributions" });
-//       }
-//     });
-
-//     app.get("/api/download-pdf/:email", async (req, res) => {
-//       try {
-//         const email = req.params.email;
-//         const contributions = await contributionsCollection
-//           .find({ email })
-//           .toArray();
-
-//         const result = await Promise.all(
-//           contributions.map(async (c) => {
-//             let issueTitle = "Unknown Issue";
-//             let category = "N/A";
-//             let issue = null;
-
-//             try {
-//               issue = await issuesCollection.findOne({
-//                 _id: new ObjectId(c.issueId),
-//               });
-//             } catch {
-//               issue = await issuesCollection.findOne({ _id: c.issueId });
-//             }
-
-//             if (issue) {
-//               issueTitle = issue.title || "Unknown Issue";
-//               category = issue.category || "N/A";
-//             }
-
-//             return {
-//               ...c,
-//               issueTitle,
-//               category,
-//             };
-//           })
-//         );
-
-//         const doc = new PDFDocument();
-//         res.setHeader("Content-Type", "application/pdf");
-//         res.setHeader(
-//           "Content-Disposition",
-//           "attachment; filename=my_contributions.pdf"
-//         );
-
-//         doc.pipe(res);
-//         doc.fontSize(20).text("My Contributions Report", { align: "center" });
-//         doc.moveDown();
-
-//         result.forEach((item, i) => {
-//           doc
-//             .fontSize(12)
-//             .text(`${i + 1}. Issue: ${item.issueTitle}`)
-//             .text(`   Category: ${item.category}`)
-//             .text(`   Amount: ৳${item.amount}`)
-//             .text(
-//               `   Date: ${new Date(item.date).toLocaleDateString("en-GB")}`
-//             )
-//             .moveDown();
-//         });
-
-//         doc.end();
-//       } catch (err) {
-//         console.error("PDF Error:", err);
-//         res.status(500).send({ message: "Error generating PDF" });
-//       }
-//     });
-
-//     app.get("/api/community-stats", async (req, res) => {
-//       try {
-//         const totalUsers = await usersCollection.estimatedDocumentCount();
-//         const totalIssues = await issuesCollection.estimatedDocumentCount();
-
-//         const resolvedIssues = await issuesCollection.countDocuments({
-//           status: "resolved",
-//         });
-//         const pendingIssues = totalIssues - resolvedIssues;
-
-//         res.send({
-//           totalUsers,
-//           totalIssues,
-//           resolvedIssues,
-//           pendingIssues,
-//         });
-//       } catch (err) {
-//         console.error("Stats error:", err);
-//         res.status(500).send({ message: "Error fetching community stats" });
-//       }
-//     });
-
-//     console.log("✅ MongoDB connection verified!");
-//   } catch (err) {
-//     console.error("❌ MongoDB Error:", err);
-//   }
-// }
-// run().catch(console.dir);
-
-// app.listen(port, () => {
-//   console.log(`🚀 Server running on port ${port}`);
-// });
